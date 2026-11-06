@@ -25,3 +25,12 @@ dist-ssr
 .env
 node_modules/
 /server/.env
+.env.*
+!.env.example
+dist/
+.DS_Store
+server/uploads/*
+!server/uploads/.gitkeep
+/server/uploads/
+# Uploaded animal photos - keep private/local
+/server/uploads/

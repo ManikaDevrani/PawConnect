@@ -148,9 +148,42 @@ code {
   border: 1px solid #dce0d5;
   border-radius: 6px;
   background: white;
+  color: #000000;
   font: inherit;
 }
 
 .report-form textarea {
   resize: vertical;
+}
+
+/* Optional animal photo upload */
+.photo-upload-label {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 17px;
+  background: #fffdf8;
+  border: 1px dashed #aab99c;
+  border-radius: 10px;
+  color: #344e38;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.photo-upload-label input[type="file"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  background: #f4f2e8;
+  border: 1px solid #d8dfd0;
+  border-radius: 8px;
+  color: #536354;
+  font-size: 12px;
+}
+
+.photo-upload-hint {
+  color: #899184;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
 }

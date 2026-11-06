@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import "./AdminDashboard.css";
 
-const API = "http://localhost:5001";
+const API = "";
 
 function AdminDashboard() {
   const [token, setToken] = useState("");
@@ -13,7 +13,9 @@ function AdminDashboard() {
 
   const [reports, setReports] = useState([]);
   const [applications, setApplications] = useState([]);
-const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const [adoptionListings, setAdoptionListings] = useState([]);
+  const [listingsLoading, setListingsLoading] = useState(false);
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("All");
@@ -52,7 +54,7 @@ const [applicationsLoading, setApplicationsLoading] = useState(false);
     setError("");
 
     try {
-      const response = await fetch(`${API}/api/rescue-reports`, {
+      const response = await fetch(`${API}/api/admin/rescue-reports`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
 
@@ -74,7 +76,7 @@ const [applicationsLoading, setApplicationsLoading] = useState(false);
 
   try {
     const response = await fetch(
-      "http://localhost:5001/api/adoption-applications",
+      "/api/adoption-applications",
       {
         headers: {
           Authorization: `Bearer ${authToken}`,
@@ -93,6 +95,29 @@ const [applicationsLoading, setApplicationsLoading] = useState(false);
     console.error("Applications error:", error.message);
   } finally {
     setApplicationsLoading(false);
+  }
+}
+async function loadAdoptionListings(authToken = token) {
+  setListingsLoading(true);
+
+  try {
+    const response = await fetch("/api/admin/adoption-listings", {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Could not load adoption listings.");
+    }
+
+    setAdoptionListings(data.listings || []);
+  } catch (error) {
+    console.error("Adoption listings error:", error.message);
+  } finally {
+    setListingsLoading(false);
   }
 }
 async function updateApplicationStatus(id, status) {
@@ -128,11 +153,116 @@ async function updateApplicationStatus(id, status) {
     alert(error.message);
   }
 }
+async function updateListingStatus(id, status) {
+  try {
+    const response = await fetch(
+      `/api/admin/adoption-listings/${id}/status`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Could not update listing status.");
+    }
+
+    setAdoptionListings((previousListings) =>
+      previousListings.map((listing) =>
+        listing.id === id
+          ? { ...listing, status }
+          : listing
+      )
+    );
+
+    alert("Adoption listing status updated successfully!");
+  } catch (error) {
+    alert(error.message);
+  }
+}
+async function deleteAdoptionListing(id) {
+  const confirmed = window.confirm(
+    "Are you sure you want to permanently delete this adoption listing?"
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch(
+      `/api/admin/adoption-listings/${id}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Could not delete listing.");
+    }
+
+    setAdoptionListings((previousListings) =>
+      previousListings.filter((listing) => listing.id !== id)
+    );
+
+    alert("Adoption listing deleted successfully!");
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+
+async function deleteReport(reportId) {
+  const confirmed = window.confirm(
+    "Are you sure you want to delete this rescue report? This cannot be undone."
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch(
+      `${API}/api/rescue-reports/${reportId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Could not delete report.");
+    }
+
+    setReports((currentReports) =>
+      currentReports.filter((report) => report.id !== reportId)
+    );
+
+    alert("Rescue report deleted successfully!");
+  } catch (err) {
+    console.error("Delete report error:", err);
+    alert(err.message || "Could not delete report.");
+  }
+}
+
+
 
   useEffect(() => {
   if (token) {
     loadReports(token);
     loadApplications(token);
+    loadAdoptionListings(token);
   }
 }, [token]);
 
@@ -365,6 +495,19 @@ async function updateApplicationStatus(id, status) {
                 </span>
               </div>
 
+               {report.photo_url ? (
+               <img
+               src={report.photo_url}
+               alt={`${report.animal_type} reported for rescue`}
+               className="admin-report-photo"
+               />
+               ) : (
+               <div className="admin-no-photo">
+               No photo uploaded
+              </div>
+               )}
+
+
               <p className="admin-description">{report.description}</p>
 
               <div className="admin-report-details">
@@ -390,9 +533,94 @@ async function updateApplicationStatus(id, status) {
                   <option value="Resolved">Resolved</option>
                 </select>
               </label>
+
+              <button
+              type="button"
+              className="admin-delete-button"
+              onClick={() => deleteReport(report.id)}
+              >
+              Delete Report
+              </button>
+
             </article>
           ))}
         </div>
+      </section>
+            <section className="admin-report-section">
+        <div className="admin-report-heading">
+          <div>
+            <h2>Adoption Listings 🐶</h2>
+            <p>Review and approve animals submitted for adoption.</p>
+          </div>
+        </div>
+
+        {listingsLoading ? (
+          <p>Loading adoption listings...</p>
+        ) : adoptionListings.length === 0 ? (
+          <p>No animal listings submitted yet.</p>
+        ) : (
+          <div className="admin-reports-list">
+            {adoptionListings.map((listing) => (
+              <article className="admin-report-card" key={listing.id}>
+                {listing.photo_url && (
+                  <img
+                    src={listing.photo_url}
+                    alt={listing.animal_name}
+                    style={{
+                      width: "150px",
+                      height: "120px",
+                      objectFit: "cover",
+                      borderRadius: "10px",
+                    }}
+                  />
+                )}
+
+                <h3>{listing.animal_name} ({listing.animal_type})</h3>
+                <p><strong>Age:</strong> {listing.age || "Not specified"}</p>
+                <p><strong>Gender:</strong> {listing.gender || "Not specified"}</p>
+                <p><strong>Location:</strong> {listing.location}</p>
+                <p><strong>Description:</strong> {listing.description}</p>
+                <p><strong>Contact person:</strong> {listing.contact_name}</p>
+                <p><strong>Contact:</strong> {listing.contact}</p>
+                <p><strong>Status:</strong> {listing.status}</p>
+
+                <div className="listing-actions">
+                <button
+                onClick={() =>
+                updateListingStatus(listing.id, "Approved")
+                 }
+                  >
+                    Approve
+                  </button>
+                
+                <button
+                    onClick={() =>
+                      updateListingStatus(listing.id, "Rejected")
+                        }
+                  >
+                    Reject
+                  </button>
+
+                <button
+                    onClick={() =>
+                      updateListingStatus(listing.id, "Pending")
+                                       }
+                                       >
+                                        Mark Pending
+                                        </button>
+
+                                         <button
+                                        onClick={() => deleteAdoptionListing(listing.id)}
+                                        >
+                                          Delete
+                                          </button>
+                                          </div>
+
+                
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="admin-report-section">
@@ -419,6 +647,7 @@ async function updateApplicationStatus(id, status) {
                 <label>
   Application Status:
   <select
+    className="application-status-select"
     value={application.status}
     onChange={(event) =>
       updateApplicationStatus(application.id, event.target.value)

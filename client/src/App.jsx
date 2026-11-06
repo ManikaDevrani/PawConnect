@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import AdminDashboard from "./AdminDashboard";
 
@@ -51,15 +51,60 @@ function App() {
   const [selectedAnimal, setSelectedAnimal] = useState(null);
   const [showAdoptionForm, setShowAdoptionForm] = useState(false);
   const [showAnimalDetails, setShowAnimalDetails] = useState(false);
+  const [showListingForm, setShowListingForm] = useState(false);
+  const [adoptionListings, setAdoptionListings] = useState([]);
+  const listingFormRef = useRef(null);
+  const adoptionFormRef = useRef(null);
 
-  const filteredAnimals =
-    filter === "All"
-      ? animals
-      : animals.filter((animal) => animal.type === filter);
+  useEffect(() => {
+  loadRescueReports();
+  loadAdoptionListings();
+}, []);
+useEffect(() => {
+  loadRescueReports();
+  loadAdoptionListings();
+}, []);
+
+// ADD THE NEW useEffect HERE
+useEffect(() => {
+  if (showListingForm && listingFormRef.current) {
+    listingFormRef.current.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+}, [showListingForm]);
+useEffect(() => {
+  if (showAdoptionForm && adoptionFormRef.current) {
+    adoptionFormRef.current.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+}, [showAdoptionForm]);
+
+  const allAnimals = [
+  ...animals,
+  ...adoptionListings.map((listing) => ({
+    name: listing.animal_name,
+    type: listing.animal_type,
+    age: listing.age,
+    gender: listing.gender,
+    location: listing.location,
+    status: "For adoption",
+    image: listing.photo_url || "https://images.unsplash.com/photo-1552053831-71594a27632d?w=800",
+    description: listing.description,
+  })),
+];
+
+const filteredAnimals =
+  filter === "All"
+    ? allAnimals
+    : allAnimals.filter((animal) => animal.type === filter);
 
   async function testBackend() {
     try {
-      const response = await fetch("http://localhost:5001/api/health");
+      const response = await fetch("/api/health");
       const data = await response.json();
 
       if (!response.ok) {
@@ -77,7 +122,7 @@ function App() {
 
     try {
       const response = await fetch(
-        "http://localhost:5001/api/rescue-reports"
+        "/api/rescue-reports"
       );
       const data = await response.json();
 
@@ -94,47 +139,82 @@ function App() {
     }
   }
 
-  async function submitReport(event) {
-    event.preventDefault();
+async function loadAdoptionListings() {
+  try {
+    const response = await fetch("/api/adoption-listings");
 
-    const formData = new FormData(event.currentTarget);
+    const data = await response.json();
 
-    const report = {
-      reporter_name: formData.get("reporter_name"),
-      contact: formData.get("contact"),
-      animal_type: formData.get("animal_type"),
-      location: formData.get("location"),
-      description: formData.get("description"),
-    };
-
-    try {
-      const response = await fetch(
-        "http://localhost:5001/api/rescue-reports",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(report),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Could not submit report.");
-      }
-
-      alert("Rescue report saved successfully! 🐾");
-      setShowReportForm(false);
-
-      // Refresh the list so the newly submitted report appears.
-      await loadRescueReports();
-    } catch (error) {
-      console.error("Report submission error:", error);
-      alert(error.message || "Could not connect to the server.");
+    if (!response.ok) {
+      throw new Error(data.message || "Could not load adoption listings.");
     }
+
+    setAdoptionListings(data.listings || []);
+  } catch (error) {
+    console.error("Error loading adoption listings:", error);
   }
+}
+
+
+  
+async function submitReport(event) {
+  event.preventDefault();
+
+  const formData = new FormData(event.currentTarget);
+
+  try {
+  const response = await fetch(
+    "/api/rescue-reports",
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Could not submit report.");
+  }
+
+  alert("Rescue report saved successfully! 🐾");
+  setShowReportForm(false);
+
+  await loadRescueReports();
+
+} catch (error) {
+  console.error("Report submission error:", error);
+  alert(error.message || "Could not connect to the server.");
+}
+}
+
+async function submitListing(event) {
+  event.preventDefault();
+
+  const formData = new FormData(event.currentTarget);
+
+  try {
+    const response = await fetch("/api/adoption-listings", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Could not submit adoption listing.");
+    }
+
+    alert("Animal submitted successfully! It will appear after admin approval. 🐾");
+
+    setShowListingForm(false);
+    event.target.reset();
+
+  } catch (error) {
+    console.error("Adoption listing submission error:", error);
+    alert(error.message || "Could not submit adoption listing.");
+  }
+}
 
   // Show the dashboard without replacing the homepage code.
   if (showAdminDashboard) {
@@ -166,6 +246,13 @@ function App() {
 
         <div className="nav-links">
           <a href="#animals">Find a friend</a>
+          <button
+          type="button"
+          className="nav-button"
+          onClick={() => setShowListingForm(true)}
+          >
+           List an Animal
+          </button>
           <a href="#how-it-works">How it works</a>
           <a className="nav-button" href="#report">
             Get help
@@ -425,12 +512,140 @@ function App() {
                 />
               </label>
 
+              <label className="photo-upload-label">
+              Upload animal photo (optional)
+              <input
+              type="file"
+              name="photo"
+              accept="image/*"
+              />
+              <span className="photo-upload-hint">
+               Add a photo to help rescuers identify the animal. Maximum size: 5 MB.
+              </span>
+              </label>
+
+
               <button className="report-button" type="submit">
                 Submit report
               </button>
             </form>
           </section>
         )}
+
+{showListingForm && (
+  <section className="report-form" ref={listingFormRef}>
+    <h2>List an Animal for Adoption</h2>
+    <p>
+      Help an animal find a loving home by sharing their details.
+    </p>
+
+    <form onSubmit={submitListing}>
+      <label>
+        Animal name
+        <input
+          type="text"
+          name="animal_name"
+          placeholder="e.g. Bella"
+          required
+        />
+      </label>
+
+      <label>
+        Animal type
+        <select name="animal_type" required defaultValue="">
+          <option value="" disabled>Select animal</option>
+          <option value="Dog">Dog</option>
+          <option value="Cat">Cat</option>
+          <option value="Other">Other</option>
+        </select>
+      </label>
+
+      <label>
+        Age
+        <input
+          type="text"
+          name="age"
+          placeholder="e.g. 2 years"
+        />
+      </label>
+
+      <label>
+        Gender
+        <select name="gender" defaultValue="">
+          <option value="">Select gender</option>
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+          <option value="Unknown">Unknown</option>
+        </select>
+      </label>
+
+      <label>
+        Location
+        <input
+          type="text"
+          name="location"
+          placeholder="e.g. Kotdwar, Uttarakhand"
+          required
+        />
+      </label>
+
+      <label>
+        Your name
+        <input
+          type="text"
+          name="contact_name"
+          placeholder="Enter your name"
+          required
+        />
+      </label>
+
+      <label>
+        Contact number
+        <input
+          type="tel"
+          name="contact"
+          placeholder="Enter your contact number"
+          required
+        />
+      </label>
+
+      <label>
+        About the animal
+        <textarea
+          name="description"
+          placeholder="Describe the animal, its personality and adoption needs..."
+          rows="4"
+          required
+        />
+      </label>
+
+      <label className="photo-upload-label">
+        Upload animal photo (optional)
+        <input
+          type="file"
+          name="photo"
+          accept="image/*"
+        />
+        <span className="photo-upload-hint">
+          Add a photo to help the animal find a home. Maximum size: 5 MB.
+        </span>
+      </label>
+
+      <button className="report-button" type="submit">
+        Submit for Approval
+      </button>
+
+      <button
+        type="button"
+        className="admin-delete-button"
+        onClick={() => setShowListingForm(false)}
+      >
+        Cancel
+      </button>
+    </form>
+  </section>
+)}
+
 {showAnimalDetails && selectedAnimal && (
 <section
   className="report-form animal-details"
@@ -490,7 +705,7 @@ function App() {
 )}
 
 {showAdoptionForm && selectedAnimal && (
-  <section className="report-form" id="adoption-form">
+  <section className="report-form" id="adoption-form" ref={adoptionFormRef}>
     <h2>Adoption enquiry for {selectedAnimal.name} 🐾</h2>
     <p>Tell us a little about yourself and why you'd like to adopt.</p>
 
@@ -510,7 +725,7 @@ function App() {
 
         try {
           const response = await fetch(
-            "http://localhost:5001/api/adoption-applications",
+            "/api/adoption-applications",
             {
               method: "POST",
               headers: {
@@ -624,28 +839,7 @@ function App() {
         <p>Made with love for the ones who need it most. ♥</p>
         <span>Rescue • Care • Adopt</span>
       </footer>
-
-      {/* Temporary backend connection test */}
-      <div style={{ padding: "20px", textAlign: "center" }}>
-        <button
-          type="button"
-          onClick={testBackend}
-          style={{
-            backgroundColor: "#2563eb",
-            color: "white",
-            padding: "12px 20px",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontSize: "16px",
-          }}
-        >
-          Test Backend Connection
-        </button>
-
-        <p>Backend status: {apiStatus}</p>
-      </div>
-    </div>
+     </div>
   );
 }
 
